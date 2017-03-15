@@ -1,3 +1,5 @@
+https://github.com/ccgus/fmdb/blob/master/README.markdown
+
 # FMDB
 
 This is an Objective-C wrapper around SQLite: http://sqlite.org/
@@ -50,6 +52,79 @@ http://ccgus.github.io/fmdb/html/index.html
 自动引用计数还是手动内存管理？
 
 你可以在你的项目中选择任意的方式。FMDB将在编译期知道你选择的方式，并作出正确的处理。
+
+
+Usage
+
+There are three main classes in FMDB:
+
+FMDatabase - Represents a single SQLite database. Used for executing SQL statements.
+FMResultSet - Represents the results of executing a query on an FMDatabase.
+FMDatabaseQueue - If you're want to perform queries and updates on multiple threads, you'll want to use this class. It's described in the "Thread Safety" section below.
+
+
+使用指南
+
+下面是在FMDB中主要的类：
+
+FMDatabase - 代表一个单独的数据库文件。用于执行SQL语句。
+FMResultSet - 代表在FMDatabase里一个执行一次查询的结果集
+FMDatabaseQueue - 如果你想要在多线程中解决问题或更新数据。你将会使用这个类。具体描述在 线程安全 这一章节下。
+
+
+Database Creation
+
+An FMDatabase is created with a path to a SQLite database file. This path can be one of these three:
+
+A file system path. The file does not have to exist on disk. If it does not exist, it is created for you.
+An empty string (@""). An empty database is created at a temporary location. This database is deleted with the FMDatabase connection is closed.
+NULL. An in-memory database is created. This database will be destroyed with the FMDatabase connection is closed.
+(For more information on temporary and in-memory databases, read the sqlite documentation on the subject: http://www.sqlite.org/inmemorydb.html)
+
+	NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tmp.db"];
+	FMDatabase *db = [FMDatabase databaseWithPath:path];
+
+数据库创建
+
+一个FMDatabase对象 通过一个指向SQLite数据文件的路径创建。这个路径可以是一下方式中的一个：
+
+一个文件系统路径。在磁盘上这个文件不能存在。如果没有存在，它将为你创建一个。
+一个空的字符串(@"")。在临时存储位置一个空数据库将被创建，当FMDatabase连接关闭时这个数据库将被删除。
+NULL。 一个内存中的数据库被创建。当FMDatabase连接关闭时，这个数据库将被销毁。
+（关于在临时位置和内存中的数据库的更多信息，可以阅读sqlite文档的这一章节http://www.sqlite.org/inmemorydb.html)
+
+
+
+Opening
+
+Before you can interact with the database, it must be opened. Opening fails if there are insufficient resources or permissions to open and/or create the database.
+
+	if (![db open]) {
+	    // [db release];   // uncomment this line in manual referencing code; in ARC, this is not necessary/permitted
+	    db = nil;
+	    return;
+	}
+
+打开数据库
+
+在你使用数据库前，你确保它是打开的。打开失败可能是资源不足或者权限不足无法打开或者创建数据库。
+
+	if (![db open]) {
+	    // [db release];   // 在手动内存管理下取消注释。在ARC中，这样是不必要也是不被允许的。
+	    db = nil;
+	    return;
+	}
+
+
+Executing Updates
+
+Any sort of SQL statement which is not a SELECT statement qualifies as an update. This includes CREATE, UPDATE, INSERT, ALTER, COMMIT, BEGIN, DETACH, DELETE, DROP, END, EXPLAIN, VACUUM, and REPLACE statements (plus many more). Basically, if your SQL statement does not begin with SELECT, it is an update statement.
+
+Executing updates returns a single value, a BOOL. A return value of YES means the update was successfully executed, and a return value of NO means that some error was encountered. You may invoke the -lastErrorMessage and -lastErrorCode methods to retrieve more information.
+
+执行更新操作
+
+任何形式的SQL语句
 
 
 
