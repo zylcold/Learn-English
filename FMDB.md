@@ -124,7 +124,157 @@ Executing updates returns a single value, a BOOL. A return value of YES means th
 
 执行更新操作
 
-任何形式的SQL语句
+任何形式的SQL语句不是一条SELECT子句都看作一次更新。包括CREATE，UPDATE，INSERT，ALTER，COMMIT，BEGIN，DETACH，DROP，END，EXPLAIN，VACUUM，和REPLACE子句(或许还有更多)。基本上，如果你的SQL语句不是已SELECT开头，它都看作一条更新语句。
+
+执行更新操作会返回一个BOOL类型的值。返回值YES表示这次更新成功执行，而返回值为NO表示遇到了一些错误。你可以调用-lastErrorMessage或-lastErrorCode 方法来获取更多的错误信息。
+
+Executing Queries
+
+A SELECT statement is a query and is executed via one of the -executeQuery... methods.
+
+Executing queries returns an FMResultSet object if successful, and nil upon failure. You should use the -lastErrorMessage and -lastErrorCode methods to determine why a query failed.
+
+In order to iterate through the results of your query, you use a while() loop. You also need to "step" from one record to the other. With FMDB, the easiest way to do that is like this:
+
+	FMResultSet *s = [db executeQuery:@"SELECT * FROM myTable"];
+	while ([s next]) {
+	    //retrieve values for each record
+	}
+
+执行查询操作
+
+一个SELECT语句表示一次查询，通过执行-executeQuery...方法。
+
+执行查询操作如果成功会返回一个FMResultSet对象，失败的话返回nil。你应该使用-lastErrorMessage或-lastErrorCode来确定失败的原因。
+
+
+为了彻底迭代你查询的结果集，你可以使用while()循环。你还会需要一些"步骤"从一条记录到另一条记录。在FDMB中，你可以用以下方式轻易的去实现。
+
+	FMResultSet *s = [db executeQuery:@"SELECT * FROM myTable"];
+	while ([s next]) {
+	    //每条记录中的检索值
+	}
+
+You must always invoke -[FMResultSet next] before attempting to access the values returned in a query, even if you're only expecting one:
+
+	FMResultSet *s = [db executeQuery:@"SELECT COUNT(*) FROM myTable"];
+	if ([s next]) {
+	    int totalCount = [s intForColumnIndex:0];
+	}
+
+当你尝试在一次查询中去访问结果集时你必须始终调用-[FMResultSet next]，即使你只执行一次：
+
+	FMResultSet *s = [db executeQuery:@"SELECT COUNT(*) FROM myTable"];
+	if ([s next]) {
+	    int totalCount = [s intForColumnIndex:0];
+	}
+
+FMResultSet has many methods to retrieve data in an appropriate format:
+
+	intForColumn:
+	longForColumn:
+	longLongIntForColumn:
+	boolForColumn:
+	doubleForColumn:
+	stringForColumn:
+	dateForColumn:
+	dataForColumn:
+	dataNoCopyForColumn:
+	UTF8StringForColumnName:
+	objectForColumnName:
+
+Each of these methods also has a {type}ForColumnIndex: variant that is used to retrieve the data based on the position of the column in the results, as opposed to the column's name.
+
+Typically, there's no need to -close an FMResultSet yourself, since that happens when either the result set is deallocated, or the parent database is closed.
+
+FMResultSet 提供多种方法用内置的格式来获取数据
+
+	intForColumn:
+	longForColumn:
+	longLongIntForColumn:
+	boolForColumn:
+	doubleForColumn:
+	stringForColumn:
+	dateForColumn:
+	dataForColumn:
+	dataNoCopyForColumn:
+	UTF8StringForColumnName:
+	objectForColumnName:
+
+这些方法每一个都是{type}ForColumnIndex:的变体，获取数据通过在结果集中列的位置而不是列的名字。
+
+通常情况下，一个FMResultSet不需要你自己来调用-close，因为这发生在结果集被销毁或者父数据库被关闭。
+
+Closing
+
+When you have finished executing queries and updates on the database, you should -close the FMDatabase connection so that SQLite will relinquish any resources it has acquired during the course of its operation.
+
+	[db close];
+
+
+关闭操作
+
+当你在数据卡上完成执行查询操作活着更新操作时，你应当调用-close 来处理FMDatabase的连接，因为这样SQLite才会释放它在操作中使用的资源。
+
+
+Transactions
+
+FMDatabase can begin and commit a transaction by invoking one of the appropriate methods or executing a begin/end transaction statement.
+
+事务操作
+
+FMDatabase可以开始或提交一个事务通过调用一个内置的方法或执行开始／结束事务语句。
+
+
+Multiple Statements and Batch Stuff
+
+You can use FMDatabase's executeStatements:withResultBlock: to do multiple statements in a string:
+
+	NSString *sql = @"create table bulktest1 (id integer primary key autoincrement, x text);"
+	                 "create table bulktest2 (id integer primary key autoincrement, y text);"
+	                 "create table bulktest3 (id integer primary key autoincrement, z text);"
+	                 "insert into bulktest1 (x) values ('XXX');"
+	                 "insert into bulktest2 (y) values ('YYY');"
+	                 "insert into bulktest3 (z) values ('ZZZ');";
+
+	success = [db executeStatements:sql];
+
+	sql = @"select count(*) as count from bulktest1;"
+	       "select count(*) as count from bulktest2;"
+	       "select count(*) as count from bulktest3;";
+
+	success = [self.db executeStatements:sql withResultBlock:^int(NSDictionary *dictionary) {
+	    NSInteger count = [dictionary[@"count"] integerValue];
+	    XCTAssertEqual(count, 1, @"expected one record for dictionary %@", dictionary);
+	    return 0;
+	}];
+
+
+多条语句和批处理操作
+
+你可以像这样在一行字符串使用FMDatabase的executeStatements:withResultBlock:方法来处理多条语句:
+
+	NSString *sql = @"create table bulktest1 (id integer primary key autoincrement, x text);"
+	                 "create table bulktest2 (id integer primary key autoincrement, y text);"
+	                 "create table bulktest3 (id integer primary key autoincrement, z text);"
+	                 "insert into bulktest1 (x) values ('XXX');"
+	                 "insert into bulktest2 (y) values ('YYY');"
+	                 "insert into bulktest3 (z) values ('ZZZ');";
+
+	success = [db executeStatements:sql];
+
+	sql = @"select count(*) as count from bulktest1;"
+	       "select count(*) as count from bulktest2;"
+	       "select count(*) as count from bulktest3;";
+
+	success = [self.db executeStatements:sql withResultBlock:^int(NSDictionary *dictionary) {
+	    NSInteger count = [dictionary[@"count"] integerValue];
+	    XCTAssertEqual(count, 1, @"expected one record for dictionary %@", dictionary);
+	    return 0;
+	}];
+
+
+
 
 
 
