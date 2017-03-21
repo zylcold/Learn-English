@@ -274,7 +274,233 @@ You can use FMDatabase's executeStatements:withResultBlock: to do multiple state
 	}];
 
 
+Data Sanitization
+
+When providing a SQL statement to FMDB, you should not attempt to "sanitize" any values before insertion. Instead, you should use the standard SQLite binding syntax:
+
+INSERT INTO myTable VALUES (?, ?, ?, ?)
+The ? character is recognized by SQLite as a placeholder for a value to be inserted. The execution methods all accept a variable number of arguments (or a representation of those arguments, such as an NSArray, NSDictionary, or a va_list), which are properly escaped for you.
 
 
+数据卫生处理
 
+当给FMDB执行一条SQL语句时，在插入值之前，你不应该是尝试给值‘消毒’。而是你应该使用标准SQLite绑定语法。
+
+INSERT INTO myTable VALUES (?, ?, ?, ?)
+
+？字符是SQLite在有值插入操作时指定的占位符。所有接受可变蚕食的方法(或者一个表示可变参数的比如NSArray， NSDictionary，或者va_list)，会对这些作为正确的转义。
+
+And, to use that SQL with the ? placeholders from Objective-C:
+
+	NSInteger identifier = 42;
+	NSString *name = @"Liam O'Flaherty (\"the famous Irish author\")";
+	NSDate *date = [NSDate date];
+	NSString *comment = nil;
+
+	BOOL success = [db executeUpdate:@"INSERT INTO authors (identifier, name, date, comment) VALUES (?, ?, ?, ?)", @(identifier), name, date, comment ?: [NSNull null]];
+	if (!success) {
+	    NSLog(@"error = %@", [db lastErrorMessage]);
+	}
+
+就像，在Objective-C 中你可以这样使用SQL 通过？占位符：
+	
+	NSInteger identifier = 42;
+	NSString *name = @"Liam O'Flaherty (\"the famous Irish author\")";
+	NSDate *date = [NSDate date];
+	NSString *comment = nil;
+
+	BOOL success = [db executeUpdate:@"INSERT INTO authors (identifier, name, date, comment) VALUES (?, ?, ?, ?)", @(identifier), name, date, comment ?: [NSNull null]];
+	if (!success) {
+	    NSLog(@"error = %@", [db lastErrorMessage]);
+	}
+
+
+	Note: Fundamental data types, like the NSInteger variable identifier, should be as a NSNumber objects, achieved by using the @ syntax, shown above. Or you can use the [NSNumber numberWithInt:identifier] syntax, too.
+
+	Likewise, SQL NULL values should be inserted as [NSNull null]. For example, in the case of comment which might be nil (and is in this example), you can use the comment ?: [NSNull null] syntax, which will insert the string if comment is not nil, but will insert [NSNull null] if it is nil.
+
+
+	提示: 基本数据类型，像NSInterger的变量，应该用一个NSNumber对象代替，你可以像上面的例子那样，通过使用@语法完成。或者你也可以使用[NSNumber numberWithInt:identifier]语法。
+	同样，在SQL中NULL值应当用[NSNull null]代替。例如，在comment也许为空的情况下(像之前那个例子)，你可以使用 comment ?: [NSNull null]语法，它将插入一条字符串如果comment不是空的话，否则将插入[NSNull null]。
+
+
+In Swift, you would use executeUpdate(values:), which not only is a concise Swift syntax, but also throws errors for proper Swift 2 error handling:
+
+	do {
+	    let identifier = 42
+	    let name = "Liam O'Flaherty (\"the famous Irish author\")"
+	    let date = NSDate()
+	    let comment: String? = nil
+
+	    try db.executeUpdate("INSERT INTO authors (identifier, name, date, comment) VALUES (?, ?, ?, ?)", values: [identifier, name, date, comment ?? NSNull()])
+	} catch {
+	    print("error = \(error)")
+	}
+Note: In Swift, you don't have to wrap fundamental numeric types like you do in Objective-C. But if you are going to insert an optional string, you would probably use the comment ?? NSNull() syntax (i.e., if it is nil, use NSNull, otherwise use the string).
+
+
+在Swift中，你可以使用executeUpdate(values:)， 这不仅是一条简介的Swift语句，并且捕获错误利用Swift2特有的错误处理:
+
+	do {
+	    let identifier = 42
+	    let name = "Liam O'Flaherty (\"the famous Irish author\")"
+	    let date = NSDate()
+	    let comment: String? = nil
+
+	    try db.executeUpdate("INSERT INTO authors (identifier, name, date, comment) VALUES (?, ?, ?, ?)", values: [identifier, name, date, comment ?? NSNull()])
+	} catch {
+    	print("error = \(error)")
+	}
+
+提示: 在Swift中，你不用像Objective—C中那样包裹一个基本数据类型。但是如果你要插入一个可选的字符串，你应该使用comment ?? NSNull()语法(也就是，如果为空，使用Null，反之使用字符串)。
+
+Alternatively, you may use named parameters syntax:
+
+	INSERT INTO authors (identifier, name, date, comment) VALUES (:identifier, :name, :date, :comment)
+
+The parameters must start with a colon. SQLite itself supports other characters, but internally the dictionary keys are prefixed with a colon, do not include the colon in your dictionary keys.
+
+	NSDictionary *arguments = @{@"identifier": @(identifier), @"name": name, @"date": date, @"comment": comment ?: [NSNull null]};
+	BOOL success = [db executeUpdate:@"INSERT INTO authors (identifier, name, date, comment) VALUES (:identifier, :name, :date, :comment)" withParameterDictionary:arguments];
+	if (!success) {
+	    NSLog(@"error = %@", [db lastErrorMessage]);
+	}
+The key point is that one should not use NSString method stringWithFormat to manually insert values into the SQL statement, itself. Nor should one Swift string interpolation to insert values into the SQL. Use ? placeholders for values to be inserted into the database (or used in WHERE clauses in SELECT statements).
+
+
+或者，你也可以使用指定参数的语法：
+	
+	NSERT INTO authors (identifier, name, date, comment) VALUES (:identifier, :name, :date, :comment)
+
+指定的参数必须以冒号开头，虽然SQLite自身支持其它字符，但是在内部dictionary的key都有一个冒号前缀，因此不要包含冒号在你dictionary的keys中。
+
+关键是我们不需要使用字符串方法stringWithFormat去手动插入值到SQL语句中，也不是，应该使用Swift插入值到SQL语句中。而是要给要插入数据库(或在SQL语句中使用WHRER字句)的值使用？占位符。
+
+Using FMDatabaseQueue and Thread Safety.
+
+Using a single instance of FMDatabase from multiple threads at once is a bad idea. It has always been OK to make a FMDatabase object per thread. Just don't share a single instance across threads, and definitely not across multiple threads at the same time. Bad things will eventually happen and you'll eventually get something to crash, or maybe get an exception, or maybe meteorites will fall out of the sky and hit your Mac Pro. This would suck.
+
+使用FMDatabaseQueue 和 线程安全
+
+在多线程中使用一个FMDatabase单例绝对是一个糟糕的主意。在每一个线程中都创建一个FMDatabase对象是可以的。千万不要在线程中共享一个实例对象， 除非保证在同时不存在于多个线程中。不然，可怕的情况下将发生然后你的应用将崩溃，或许获得一个异常，或许陨石从天上掉下来然后砸到你的Mac Pro。多么糟糕。
+
+
+	So don't instantiate a single FMDatabase object and use it across multiple threads.
+
+Instead, use FMDatabaseQueue. Instantiate a single FMDatabaseQueue and use it across multiple threads. The FMDatabaseQueue object will synchronize and coordinate access across the multiple threads. Here's how to use it:
+
+First, make your queue.
+
+FMDatabaseQueue *queue = [FMDatabaseQueue databaseQueueWithPath:aPath];
+Then use it like so:
+
+	[queue inDatabase:^(FMDatabase *db) {
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @1];
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @2];
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @3];
+
+	    FMResultSet *rs = [db executeQuery:@"select * from foo"];
+	    while ([rs next]) {
+	        …
+	    }
+	}];
+
+	因此千万不要实例化一个FMDatabase单例对象在多个线程中访问它。
+
+相反的，使用FMDatabaseQueue。实例化一个FMDatabaseQueue对象然后在多线程中访问它。FMDatabaseQueue对象将在多个线程中同步并协调去访问。下面告诉你如何使用：
+
+首先，创建你的队列。
+FMDatabaseQueue *queue = [FMDatabaseQueue databaseQueueWithPath:aPath];
+然后像这样使用：
+
+	[queue inDatabase:^(FMDatabase *db) {
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @1];
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @2];
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @3];
+
+	    FMResultSet *rs = [db executeQuery:@"select * from foo"];
+	    while ([rs next]) {
+	        …
+	    }
+
+An easy way to wrap things up in a transaction can be done like this:
+
+	[queue inTransaction:^(FMDatabase *db, BOOL *rollback) {
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @1];
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @2];
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @3];
+
+	    if (whoopsSomethingWrongHappened) {
+	        *rollback = YES;
+	        return;
+	    }
+
+	    // etc ...
+	}];
+
+The Swift 3 equivalent would be:
+
+	queue.inTransaction { db, rollback in
+	    do {
+	        try db?.executeUpdate("INSERT INTO myTable VALUES (?)", values: [1])
+	        try db?.executeUpdate("INSERT INTO myTable VALUES (?)", values: [2])
+	        try db?.executeUpdate("INSERT INTO myTable VALUES (?)", values: [3])
+
+	        if whoopsSomethingWrongHappened {
+	            rollback?.pointee = true
+	            return
+	        }
+
+	        // etc ...
+	    } catch {
+	        rollback?.pointee = true
+	        print(error)
+	    }
+	}
+(Note, in Swift 3, use pointee. But in Swift 2.3, use memory rather than pointee.)
+
+FMDatabaseQueue will run the blocks on a serialized queue (hence the name of the class). So if you call FMDatabaseQueue's methods from multiple threads at the same time, they will be executed in the order they are received. This way queries and updates won't step on each other's toes, and every one is happy.
+
+Note: The calls to FMDatabaseQueue's methods are blocking. So even though you are passing along blocks, they will not be run on another thread.
+	}];
+
+
+像下面这样用一个简单的方式去包裹事务操作:
+
+	[queue inTransaction:^(FMDatabase *db, BOOL *rollback) {
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @1];
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @2];
+	    [db executeUpdate:@"INSERT INTO myTable VALUES (?)", @3];
+
+	    if (whoopsSomethingWrongHappened) {
+	        *rollback = YES;
+	        return;
+	    }
+
+	    // etc ...
+	}];
+
+Swift3中相同的用法:
+
+	queue.inTransaction { db, rollback in
+	    do {
+	        try db?.executeUpdate("INSERT INTO myTable VALUES (?)", values: [1])
+	        try db?.executeUpdate("INSERT INTO myTable VALUES (?)", values: [2])
+	        try db?.executeUpdate("INSERT INTO myTable VALUES (?)", values: [3])
+
+	        if whoopsSomethingWrongHappened {
+	            rollback?.pointee = true
+	            return
+	        }
+
+	        // etc ...
+	    } catch {
+	        rollback?.pointee = true
+	        print(error)
+	    }
+	}
+
+(提示， 在Swift3中使用指针，但是在Swift2.3中使用内存而不是指针)
+
+FMDatabaseQueue 将会在一个串行队列执行这些Blocks(可能是Class为命名)，因此
 
