@@ -502,5 +502,239 @@ Swift3中相同的用法:
 
 (提示， 在Swift3中使用指针，但是在Swift2.3中使用内存而不是指针)
 
-FMDatabaseQueue 将会在一个串行队列执行这些Blocks(可能是Class为命名)，因此
+FMDatabaseQueue 将会在一个串行队列执行这些Blocks(可能是Class为命名)，因此，如果你在多线程中同时调用FMDatabaseQueue的方法，他们将按照响应的顺序被处理，这样方式的查询和更新就不会出现踩到其他人脚趾，皆大欢喜。
+
+注意，FMDatabaseQueue's methods的调用是一个block。因此尽管你和block一同调用，但是block也不会运行在另外一个线程中。
+
+
+Making custom sqlite functions, based on blocks.
+
+You can do this! For an example, look for -makeFunctionNamed: in main.m
+
+制作自定义的sqlite放大，基于blocks
+
+你可以这样做，下面就有一个一例子，详情在main.m 中的 -makeFunctionNamed:
+
+
+
+Swift
+
+You can use FMDB in Swift projects too.
+
+To do this, you must:
+
+1. Copy the relevant .m and .h files from the FMDB src folder into your project.
+You can copy all of them (which is easiest), or only the ones you need. Likely you will need FMDatabase and FMResultSet at a minimum. FMDatabaseAdditions provides some very useful convenience methods, so you will likely want that, too. If you are doing multithreaded access to a database, FMDatabaseQueue is quite useful, too. If you choose to not copy all of the files from the src directory, though, you may want to update FMDB.h to only reference the files that you included in your project.
+
+Note, if you're copying all of the files from the src folder into to your project (which is recommended), you may want to drag the individual files into your project, not the folder, itself, because if you drag the folder, you won't be prompted to add the bridging header (see next point).
+
+2. If prompted to create a "bridging header", you should do so. If not prompted and if you don't already have a bridging header, add one.
+For more information on bridging headers, see Swift and Objective-C in the Same Project.
+
+3. In your bridging header, add a line that says:
+
+ #import "FMDB.h"
+4. Use the variations of executeQuery and executeUpdate with the sql and values parameters with try pattern, as shown below. These renditions of executeQuery and executeUpdate both throw errors in true Swift 2 fashion.
+
+
+Swift
+
+你也可以在Swift项目中使用FMDB。
+想要这样做，你必须：
+
+1. 复制相关的.m和.h文件从FMDB src文件夹中到你的项目中。
+你能复制所有(这最容易)，或者仅仅是你需要的。比如，可能仅仅需要FMDatabase，FMResultSet。FMDatabaseAdditions提供了很多有用的便利方法，因此你可能喜欢使用它们。如果你需要在多线程中访问数据库，FMDatabaseQueue也是非常有用的。如果你不是在src目录中复制所有的文件，那么你需要修改FMDB.h成哪些导入到你项目中引用的文件。
+
+注意，如果你从src文件中复制所有的文件到你的项目里(推荐这样做)，你可能会拖一个文件夹到你的项目中，不要整个文件夹，只有本身，因为如果你拖文件夹，你将不会提示你需要添加桥接文件（看下一步）
+
+2. 如果提示创建'桥接文件'，你应该照做。如果没有提示或者你没有准备好一个桥接文件，在里面添加一个。关于桥接头文件更多信息，看Swift and Objective-C 命名的项目。
+
+3. 在你的桥接头文件中，添加如下一行:
+ #import "FMDB.h"
+4. 像下面这样，执行executeQuery和executeUpdate方式时尝试用模式匹配执行Sql和数据参数。使用这些executeQuery和executeUpdate方法时异常处理方式使用Swift2的新特性。
+
+
+If you do the above, you can then write Swift code that uses FMDatabase. For example, in Swift 3:
+
+let fileURL = try! FileManager.default
+    .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+    .appendingPathComponent("test.sqlite")
+
+guard let database = FMDatabase(path: fileURL.path) else {
+    print("unable to create database")
+    return
+}
+
+guard database.open() else {
+    print("Unable to open database")
+    return
+}
+
+do {
+    try database.executeUpdate("create table test(x text, y text, z text)", values: nil)
+    try database.executeUpdate("insert into test (x, y, z) values (?, ?, ?)", values: ["a", "b", "c"])
+    try database.executeUpdate("insert into test (x, y, z) values (?, ?, ?)", values: ["e", "f", "g"])
+
+    let rs = try database.executeQuery("select x, y, z from test", values: nil)
+    while rs.next() {
+        if let x = rs.string(forColumn: "x"), let y = rs.string(forColumn: "y"), let z = rs.string(forColumn: "z") {
+            print("x = \(x); y = \(y); z = \(z)")
+        }
+    }
+} catch {
+    print("failed: \(error.localizedDescription)")
+}
+
+database.close()
+
+如果你完成以上，你可以写Swift代码来使用FMDatabase， 例如，在Swift3中:
+
+let fileURL = try! FileManager.default
+    .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+    .appendingPathComponent("test.sqlite")
+
+guard let database = FMDatabase(path: fileURL.path) else {
+    print("unable to create database")
+    return
+}
+
+guard database.open() else {
+    print("Unable to open database")
+    return
+}
+
+do {
+    try database.executeUpdate("create table test(x text, y text, z text)", values: nil)
+    try database.executeUpdate("insert into test (x, y, z) values (?, ?, ?)", values: ["a", "b", "c"])
+    try database.executeUpdate("insert into test (x, y, z) values (?, ?, ?)", values: ["e", "f", "g"])
+
+    let rs = try database.executeQuery("select x, y, z from test", values: nil)
+    while rs.next() {
+        if let x = rs.string(forColumn: "x"), let y = rs.string(forColumn: "y"), let z = rs.string(forColumn: "z") {
+            print("x = \(x); y = \(y); z = \(z)")
+        }
+    }
+} catch {
+    print("failed: \(error.localizedDescription)")
+}
+
+database.close()
+
+
+Or in Swift 2:
+
+let fileURL = try! NSFileManager.defaultManager()
+    .URLForDirectory(.DocumentDirectory, inDomain: .UserDomainMask, appropriateForURL: nil, create: false)
+    .URLByAppendingPathComponent("test.sqlite")
+
+let database = FMDatabase(path: fileURL.path)
+
+if !database.open() {
+    print("Unable to open database")
+    return
+}
+
+do {
+    try database.executeUpdate("create table test(x text, y text, z text)", values: nil)
+    try database.executeUpdate("insert into test (x, y, z) values (?, ?, ?)", values: ["a", "b", "c"])
+    try database.executeUpdate("insert into test (x, y, z) values (?, ?, ?)", values: ["e", "f", "g"])
+
+    let rs = try database.executeQuery("select x, y, z from test", values: nil)
+    while rs.next() {
+        let x = rs.stringForColumn("x")
+        let y = rs.stringForColumn("y")
+        let z = rs.stringForColumn("z")
+        print("x = \(x); y = \(y); z = \(z)")
+    }
+} catch let error as NSError {
+    print("failed: \(error.localizedDescription)")
+}
+
+database.close()
+
+或着Swift2中:
+
+let fileURL = try! NSFileManager.defaultManager()
+    .URLForDirectory(.DocumentDirectory, inDomain: .UserDomainMask, appropriateForURL: nil, create: false)
+    .URLByAppendingPathComponent("test.sqlite")
+
+let database = FMDatabase(path: fileURL.path)
+
+if !database.open() {
+    print("Unable to open database")
+    return
+}
+
+do {
+    try database.executeUpdate("create table test(x text, y text, z text)", values: nil)
+    try database.executeUpdate("insert into test (x, y, z) values (?, ?, ?)", values: ["a", "b", "c"])
+    try database.executeUpdate("insert into test (x, y, z) values (?, ?, ?)", values: ["e", "f", "g"])
+
+    let rs = try database.executeQuery("select x, y, z from test", values: nil)
+    while rs.next() {
+        let x = rs.stringForColumn("x")
+        let y = rs.stringForColumn("y")
+        let z = rs.stringForColumn("z")
+        print("x = \(x); y = \(y); z = \(z)")
+    }
+} catch let error as NSError {
+    print("failed: \(error.localizedDescription)")
+}
+
+database.close()
+
+
+History
+
+The history and changes are availbe on its GitHub page and are summarized in the "CHANGES_AND_TODO_LIST.txt" file.
+
+Contributors
+
+The contributors to FMDB are contained in the "Contributors.txt" file.
+
+Additional projects using FMDB, which might be interesting to the discerning developer.
+
+FMDBMigrationManager, A SQLite schema migration management system for FMDB: https://github.com/layerhq/FMDBMigrationManager
+FCModel, An alternative to Core Data for people who like having direct SQL access: https://github.com/marcoarment/FCModel
+
+
+历史记录
+
+历史和更改记录可以在它的GitHub页面可以找到并汇总在CHANGES_AND_TODO_LIST.txt 文件中。
+
+FMDB扩展项目,这些可能会让开发者感兴趣
+
+FMDBMigrationManager 一个FMDB的SQLite 模式迁移管理系统 https://github.com/layerhq/FMDBMigrationManager
+FCModel， 一个像CoreData(有些人或许喜欢)那样访问SQL访问 https://github.com/marcoarment/FCModel
+
+Quick notes on FMDB's coding style
+
+Spaces, not tabs. Square brackets, not dot notation. Look at what FMDB already does with curly brackets and such, and stick to that style.
+
+FMDB编程风格快速笔记
+
+空格，不要Tab。统一使用[符号，不要点符号。像FMDB那样对折[号等等，坚持风格。
+
+Reporting bugs
+
+Reduce your bug down to the smallest amount of code possible. You want to make it super easy for the developers to see and reproduce your bug. If it helps, pretend that the person who can fix your bug is active on shipping 3 major products, works on a handful of open source projects, has a newborn baby, and is generally very very busy.
+
+And we've even added a template function to main.m (FMDBReportABugFunction) in the FMDB distribution to help you out:
+
+Open up fmdb project in Xcode.
+Open up main.m and modify the FMDBReportABugFunction to reproduce your bug.
+Setup your table(s) in the code.
+Make your query or update(s).
+Add some assertions which demonstrate the bug.
+Then you can bring it up on the FMDB mailing list by showing your nice and compact FMDBReportABugFunction, or you can report the bug via the github FMDB bug reporter.
+
+Optional:
+
+Figure out where the bug is, fix it, and send a patch in or bring that up on the mailing list. Make sure all the other tests run after your modifications.
+
+
+
+报告问题
+
+
 
